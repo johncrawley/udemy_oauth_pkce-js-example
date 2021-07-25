@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>JavaScript APP with PKCE</title>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+	<script>
+	
+	    let codeVerifier = "";
+	    let codeChallenge = "";
+	    let state = "";
+		let accessToken = "";
+		
+       const generateState = (length) => {                        
+           let stateValue = "";
+           const charSet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+           const charSetLength = charSet.length;
+           for(let i =0; i < length; i++){
+               stateValue += charSet.charAt(Math.floor(Math.random() * charSetLength));
+           }
+           document.getElementById("stateValue").innerHTML = stateValue;
+           state = stateValue;
+       };
+       
+       
+       const generateCodeVerifier = () => {
+           let returnValue = "";
+           let randomByteArray = new Uint8Array(32);
+           window.crypto.getRandomValues(randomByteArray);
+           returnValue = base64Encode(randomByteArray);
+           codeVerifier = returnValue;
+           document.getElementById("codeVerifierValue").innerHTML = returnValue;
+       }
+
+       
+       const base64Encode = (sourceValue) => {
+           let stringVal = String.fromCharCode.apply(null, sourceValue);
+           let base64Encoded = btoa(stringVal);
+           return formatForBase64(base64Encoded);
+       }
+
+       const formatForBase64 = (str) => {
+    	   return str.replace(/\+/g, '-').replace(/\//g, '').replace(/=/g, '');
+       }
+       
+       
+       const getCodeVerifier = () => {
+    	   return codeVerifier;
+       }
+
+       const getCodeChallenge= () => {
+    	   return codeChallenge;
+       }
+       
+       const getState = () => {
+    	   return state;
+       }
+       
+
+       function postRequestAccessToken(data, status, jqXHR) {
+    	   console.log("Entered postRequestAccessToken!");
+    	   accessToken = data["access_token"];
+    	   document.getElementById("accessToken").innerHTML = data["access_token"];
+    	   
+       }
+       
+       
+		function postAuthorize(responseState, authCode){
+			if(getState() === responseState){
+				requestTokens(authCode);
+			}
+			else {
+				alert("Invalid state received!");
+			}
+			document.getElementById("authCodeH").innerHTML = authCode;
+		}
+	
+
+		const redirectUri = "http://localhost:8281/authcodeReader.html";
+		const authUri = "http://localhost:8080/auth/realms/appsdevblog/protocol/openid-connect/token";
+		
+       const requestTokens = (authCode) => {
+    	   console.log("Sending authCode: " + authCode);
+    	   console.log("with codeVerifier: " + codeVerifier);
+    	   console.log("and redirect_uri: " + redirectUri);
+    	   
+
+    	   var data = {
+    			"grant_type": "authorization_code",
+    			"client_id": "udemy-pkce-client",
+    			"code": authCode,
+    			"code_verifier": codeVerifier,
+    			"redirect_uri": redirectUri	   
+    	   }; 
+    	   
+    	   console.log("About to make the ajax request to : " + authUri);
+    	   
+    	   $.ajax({
+    		 beforeSend: function (request)  {
+    			 console.log("about to set Request header");
+    			 request.setRequestHeader("Content-type", "application/x-www-form-urlencoded; charset=UTF-8");
+    			 console.log("Request header set!");
+    		 },
+    		 type: "POST",
+    		 url: authUri,
+    		 data: data,
+    		 success: postRequestAccessToken,
+    		 dataType: "json"
+    	   });
+    	   
+    	      	   
+       }
+       
+      
+
+       const generateCodeChallenge = async () => {
+           
+           let codeChallengeValue = "";
+           let textEncoder  = new TextEncoder('US-ASCII');
+           let encodedValue = textEncoder.encode(getCodeVerifier());
+           let digest = await window.crypto.subtle.digest("SHA-256", encodedValue);
+           
+           codeChallengeValue = base64Encode(Array.from(new Uint8Array(digest)));
+           document.getElementById("codeChallengeValue").innerHTML = codeChallengeValue;
+           codeChallenge = codeChallengeValue;
+       }        
+       
+       
+       const getAuthCode = () => {
+           var state = getState();
+           var codeChallenge = getCodeChallenge();
+           
+           var authUrl = "http://localhost:8080/auth/realms/appsdevblog/protocol/openid-connect/auth";
+           authUrl += "?client_id=udemy-pkce-client";
+           authUrl += "&response_type=code";
+           authUrl += "&scope=openid";
+           authUrl += "&redirect_uri=" + redirectUri;
+           authUrl += "&state=" + state;
+           authUrl += "&code_challenge=" + codeChallenge;
+           authUrl += "&code_challenge_method=S256";
+        
+           window.open(authUrl, 'authorizationRequestWindow', 'width=800,height=600,left=200,top=200');
+      
+       }
+       
+       const postResponseFromServer = (data, status, jqXHR) => {
+    	   console.log(data);
+       }
+
+       
+       const getInfoFromResourceServer = () => {
+    	   
+    	   $.ajax({
+    		   beforeSend: function (request){
+    			   request.setRequestHeader("Content-type", "application/x-www-form-urlencoded; charset=UTF-8");
+    			   request.setRequestHeader("Authorization", "Bearer " + accessToken);
+    		   },
+    		   type: "GET",
+    		   url: "http://localhost:8088/users/status/check",
+    		   success: postResponseFromServer,
+    		   dataType: "text" 
+    	   });   
+       }
+       
+       
+       
+       
+	</script>
+	 
+</head>
+<body>
+
+	<h1>Index Page</h1>
+	
+	<div id="stateValue"></div>	
+	<div><input type="button" onclick="generateState(30)"  value="Generate State value"/></div>
+    <div id="codeVerifierValue"></div>
+	<div><input type="button" onclick="generateCodeVerifier()"  value="Generate Code Verifier"/></div>
+    <div id="codeChallengeValue"></div>
+	<div><input type="button" onclick="generateCodeChallenge()"  value="Generate Code Challenge"/></div>
+	<br/>
+	<div><input type="button" onclick="getAuthCode()"  value="Get Auth Code"/></div>
+	<h3> Auth Code:</h3>
+	<h4 id="authCodeH"></h4>
+	<h3>Access Token: </h3>
+	<h4 id="accessToken"></h4>
+	<div> <input type="button" onclick="getInfoFromResourceServer()" value="get Info from Resource Server"  /></div>
+</body>
+</html>

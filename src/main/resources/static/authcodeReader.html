@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Authorization Code Reader</title>
+
+
+
+</head>
+<body>
+	<script>
+		let urlParams = new URLSearchParams(window.location.search);
+		let authCode 	= urlParams.get('code');
+		let state 		= urlParams.get('state');
+		let error 		= urlParams.get('error');
+		let errorDesc	= urlParams.get('error_description');
+		
+		if(error){
+			window.alert("The following error occured: " + error + ". Description: " + errorDesc);
+			console.log("Error! : " + errorDesc);
+		}else{
+			window.opener.postAuthorize(state, authCode);
+		}
+		window.close();	
+	</script>
+</body>
+</html>
